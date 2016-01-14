@@ -8,6 +8,7 @@
 #endif /* !NULL */
 
 // lib/stdio.c
+// there is no stdio.c, and these functions have been defined in console.c
 void	cputchar(int c);
 int	getchar(void);
 int	iscons(int fd);
