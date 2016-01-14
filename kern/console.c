@@ -74,35 +74,6 @@ serial_putc(int c)
 
 	//printf to shell using serial interface. code to follow
 	outb(COM1 + COM_TX, c & 0xff);
-
-	// if no attribute given, then use black on white
-	if (!(c & ~0xFF))
-		c |= 0x0700;
-
-	switch (c & 0xff) {
-	case '\b':
-		if (crt_pos > 0) {
-			crt_pos--;
-			crt_buf[crt_pos] = (c & ~0xff) | ' ';
-		}
-		break;
-	case '\n':
-		crt_pos += CRT_COLS;
-		/* fallthru */
-	case '\r':
-		crt_pos -= (crt_pos % CRT_COLS);
-		break;
-	case '\t':
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		cons_putc(' ');
-		break;
-	default:
-		crt_buf[crt_pos++] = c;		/* write the character */
-		break;
-	}
 }
 
 static void
