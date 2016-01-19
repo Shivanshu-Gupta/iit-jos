@@ -18,11 +18,15 @@ pte_t entry_pgtable[NPTENTRIES];
 // here, rather than the more standard "x | PTE_P".  Everywhere else
 // you should use "|" to combine flags.
 __attribute__((__aligned__(PGSIZE)))
+// entry_pgdir[i] hold the address of pgtable mapping VA's [i<<22,(i+1)<<22)
+// or [i<<22, i<<22 + 4MB).
 pde_t entry_pgdir[NPDENTRIES] = {
-	// Map VA's [0, 4MB) to PA's [0, 4MB)
+	// Map VA's [0, 4MB) to PA's [0, 4MB) <-- because 0th entry.
+	// entry_pgtable - KERNBASE = address of page table in physical memory.
 	[0]
 		= ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P,
 	// Map VA's [KERNBASE, KERNBASE+4MB) to PA's [0, 4MB)
+	// PDXSHIT = 22, so VA's [KERNBASE, KERNBASE+4MB) are mapped.
 	[KERNBASE>>PDXSHIFT]
 		= ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P + PTE_W
 };
