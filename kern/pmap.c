@@ -42,8 +42,12 @@ i386_detect_memory(void)
 	// Calculate the number of physical pages available in both base
 	// and extended memory.
 	if (npages_extmem)
+		// if there is extended memory, then number of pages is
+		// pages in the IO hole plus the extended.
+		// why is npages_basemem not added???
 		npages = (EXTPHYSMEM / PGSIZE) + npages_extmem;
 	else
+		// else it's just the number of pages in the base memory.
 		npages = npages_basemem;
 
 	cprintf("Physical memory: %uK available, base = %uK, extended = %uK\n",
@@ -98,8 +102,11 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+	result = nextfree;
+	nextfree = nextfree + n;
+	nextfree = ROUNDUP(nextfree, PGSIZE);
+	return result;
+	//return NULL;
 }
 
 // Set up a two-level page table:
@@ -121,7 +128,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	// panic("mem_init: This function is not fiished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -135,6 +142,8 @@ mem_init(void)
 	// following line.)
 
 	// Permissions: kernel R, user R
+	// PDX(UVPT) = UVPT>>22
+	// index i stores the address of the table mapping [i<<22, i<<22 + 4MB)
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 	//////////////////////////////////////////////////////////////////////
@@ -144,7 +153,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
+	pages = (struct PageInfo *)boot_alloc(npages * sizeof(struct PageInfo));
+	memset(pages, 0, npages * sizeof(struct PageInfo));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -248,11 +258,23 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
-	for (i = 0; i < npages; i++) {
+	// IS THIS WHAT IS MEANT BY MARING IN USE????
+	pages[0].pp_ref = 0;
+	pages[0].pp_link = page_free_list;
+	//for (i = 0; i < npages; i++) {
+	for(i = 1; i < npages_basemem; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
 	}
+	//cprintf("next_free: %08x\n", PGNUM(PADDR(boot_alloc(0))));
+	//cprintf("EXTPHYSMEM: %08x\n", EXTPHYSMEM);
+	for(i = PGNUM(PADDR(boot_alloc(0))); i<npages; i++) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	}
+	
 }
 
 //
@@ -271,7 +293,16 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+	if(!page_free_list) {
+		return 0;
+	}
+	struct PageInfo* page = page_free_list;
+	page_free_list = page->pp_link;
+	page->pp_link = NULL;
+	if(alloc_flags & ALLOC_ZERO) {
+		memset(page2kva(page), 0, PGSIZE);
+	}
+	return page;
 }
 
 //
@@ -284,6 +315,11 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref != 0 || pp->pp_link != NULL) {
+		panic("attempt to free a page that is already free");
+	}
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
@@ -509,27 +545,23 @@ check_page_alloc(void)
 	// check number of free pages
 	for (pp = page_free_list, nfree = 0; pp; pp = pp->pp_link)
 		++nfree;
-
 	// should be able to allocate three pages
 	pp0 = pp1 = pp2 = 0;
 	assert((pp0 = page_alloc(0)));
 	assert((pp1 = page_alloc(0)));
 	assert((pp2 = page_alloc(0)));
-
 	assert(pp0);
 	assert(pp1 && pp1 != pp0);
 	assert(pp2 && pp2 != pp1 && pp2 != pp0);
 	assert(page2pa(pp0) < npages*PGSIZE);
 	assert(page2pa(pp1) < npages*PGSIZE);
 	assert(page2pa(pp2) < npages*PGSIZE);
-
 	// temporarily steal the rest of the free pages
 	fl = page_free_list;
 	page_free_list = 0;
 
 	// should be no free memory
 	assert(!page_alloc(0));
-
 	// free and re-allocate?
 	page_free(pp0);
 	page_free(pp1);

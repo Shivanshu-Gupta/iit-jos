@@ -32,9 +32,11 @@
 // page directory index
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
+// & with 0x3FF so as to keep only the lower order 10 bits
 // page table index
 #define PTX(la)		((((uintptr_t) (la)) >> PTXSHIFT) & 0x3FF)
 
+// & with 0xFFF so as to keep only the lower order 12 bits
 // offset in page
 #define PGOFF(la)	(((uintptr_t) (la)) & 0xFFF)
 
@@ -72,6 +74,7 @@
 // Flags in PTE_SYSCALL may be used in system calls.  (Others may not.)
 #define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)
 
+// & with ~0xFFF to zero out the offset bits
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)	((physaddr_t) (pte) & ~0xFFF)
 
@@ -136,9 +139,14 @@
 /*
  * Macros to build GDT entries in assembly.
  */
+
+// SEG_NULL macro inserts two words (1 word = 2 bytes in x86)
+// followed by 4 bytes all filled with zeroes in the executable.
 #define SEG_NULL						\
 	.word 0, 0;						\
 	.byte 0, 0, 0, 0
+
+// SEG(type,base,lim)
 #define SEG(type,base,lim)					\
 	.word (((lim) >> 12) & 0xffff), ((base) & 0xffff);	\
 	.byte (((base) >> 16) & 0xff), (0x90 | (type)),		\
@@ -168,11 +176,19 @@ struct Segdesc {
 #define SEG_NULL	(struct Segdesc){ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 // Segment that is loadable but faults when used
 #define SEG_FAULT	(struct Segdesc){ 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0 }
-// Normal segment
+
+// Normal segments
+// granularity bit set => the granularity is 4KB
+// the segment size may be upto 4GB
+// lim is now in the higher order 20 bits
+// lower order 12 bits of lim will be set to 1 during limit checking.
 #define SEG(type, base, lim, dpl) (struct Segdesc)			\
 { ((lim) >> 12) & 0xffff, (base) & 0xffff, ((base) >> 16) & 0xff,	\
     type, 1, dpl, 1, (unsigned) (lim) >> 28, 0, 0, 1, 1,		\
     (unsigned) (base) >> 24 }
+// granularity bit unset => the granularity is 1 byte
+// the segment size may be upto 1MB
+// lim is now in the lower order 20 bits.
 #define SEG16(type, base, lim, dpl) (struct Segdesc)			\
 { (lim) & 0xffff, (base) & 0xffff, ((base) >> 16) & 0xff,		\
     type, 1, dpl, 1, (unsigned) (lim) >> 16, 0, 0, 1, 0,		\
@@ -182,9 +198,9 @@ struct Segdesc {
 
 // Application segment type bits
 #define STA_X		0x8	    // Executable segment
-#define STA_E		0x4	    // Expand down (non-executable segments)
+#define STA_E		0x4	    // Expand down (non-executable i.e. data segments)
 #define STA_C		0x4	    // Conforming code segment (executable only)
-#define STA_W		0x2	    // Writeable (non-executable segments)
+#define STA_W		0x2	    // Writeable (non-executable i.e. data segments)
 #define STA_R		0x2	    // Readable (executable segments)
 #define STA_A		0x1	    // Accessed
 
