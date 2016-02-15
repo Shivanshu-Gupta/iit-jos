@@ -1,0 +1,20 @@
+1. mystery_t will uintptr_t
+
+2. 
+ENTRY 		BASE VIRTUAL ADDRESS 			POINTS TO (LOGICALLY)
+1023		
+
+5.
+The space overhead is in the form of the page tables and the page directories we have to maintain.
+
+6. 
+We transition to running at EIP above KERNBASE when after enabling paging, we execute this code:
+
+mov		$relocated, eax
+jmp 	$eax
+
+As the address $relocated is above the KERNBASE, we will now be excuting code at VA's above KERNBASE.
+
+We are able to continue executing code at low EIP as thee entry_pgdir contains entries for 2 page tables, one mapping the VA's [0x0, 0x400000) to PA's [0x0, 0x400000), and the other mapping the VA's [0xf0000000, 0xf0400000) to PA's [0x0, 0x400000). As the kernel is loaded at lower addresses, both the VA's (0x00000+i) as well as (0xf0000000+i) will map to the PA (0x00000+i).
+
+This transition is necessary as we want to use the addresses below the KERNBASE for the user processes and KERNEL code 
