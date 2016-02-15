@@ -10,7 +10,7 @@
 #include <inc/assert.h>
 
 extern char bootstacktop[], bootstack[];
-
+extern pde_t entry_pgdir[], entry_pgtable[];
 extern struct PageInfo *pages;
 extern size_t npages;
 

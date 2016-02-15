@@ -5,10 +5,12 @@
 # memory at physical address 0x7c00 and starts executing in real mode
 # with %cs=0 %ip=7c00.
 
-# segment decscriptors are 8byte in size and thus the selectors are multiples of 8.
-# these will get added to the base address of the GDT.
-# **though the i386.pdf said that selectors are just indexes 
-# that will get multiplied by 8 before adding to base.
+# Selector : 14 bit index - 1 bit Table Indicator - 1 bit RPL
+# CS = 0x00001000 => index = 1, TI = 0 (GDT), RPL = 0 (Highest privilege)
+# DS = 0x00010000 => index = 2, TI = 0 (GDT), RPL = 0
+# index 0 in GDT is null segment descriptor.
+# Segment descriptors are 8 bytes in size => addr = gdt + 8 * index
+# Descriptors have a hidden portion loaded with the descriptor by the processor.
 .set PROT_MODE_CSEG, 0x8         # kernel code segment selector
 .set PROT_MODE_DSEG, 0x10        # kernel data segment selector
 .set CR0_PE_ON,      0x1         # protected mode enable flag

@@ -153,17 +153,19 @@ typedef uint32_t pde_t;
  * can be accessed through a "virtual page table" at virtual address UVPT (to
  * which uvpt is set in entry.S).  The PTE for page number N is stored in
  * uvpt[N].  (It's worth drawing a diagram of this!)
- * uvpt[N] points to VA (UVPT+4N) i.e. (0x3BD<<22 + 4N)
- * 1. kern_pgdir[PDX(UVPT+4N)] = kern_pgdir[UVPT] = PA of kern_pgdir
- * 2. PA of page for UVPT+4N = kern_pgdir[PTX(UVPT+4N)] = kern_pgdir[4N>>12]
- * 3. PA of page for UVPT+4N = PA of pgtable for page N.
- * 4. PGOFF(UVPT+4N) = offset of N the entry of the pg table
- * 5. PA for UVPT+N contains the starting PA of page N
- * 6. Hence uvpt[N] will give us the starting PA of page N.
- *
+ * 
+ * uvpt[N] is the pte_t value stored at VA (UVPT+4*N) i.e. (0x3BD<<22|N<<2) = v
+ * 1. PDX(V) = 0x3BD, PTX(v) = (N<<2)>>12, PGOFF(v) = (N<<2) && 0xfff
+ * 2. But (N<<2)>>12 = PDX of VP N
+ * 3. And (N<<2) && 0xfff = offset of PTE of VP N, inside its page table.
+ * 4. VA (UVPT + 4*N) will get translated to the PA of PTE of VP N.
+ * 5. Hence uvpt[N] will give us the PTE of VP N (where N ranges from 0 to 2^20-1)
+ * 
  * A second consequence is that the contents of the current page directory
  * will always be available at virtual address (UVPT + (UVPT >> PGSHIFT)), to
  * which uvpd is set in entry.S.
+ * UVPT + (UVPT>>PGSHIFT) == 0x3BD<<22 | 0x3BD<<12. 
+ * For Nth PDE, we may do both uvpt[0x3BD<<12 | N] or uvpd[N]
  */
 
 // uvpt[N] gives the Nth page's PA
