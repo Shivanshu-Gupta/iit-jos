@@ -1,11 +1,32 @@
 1. mystery_t will uintptr_t
 
+
 2. 
-ENTRY 		BASE VIRTUAL ADDRESS 			POINTS TO (LOGICALLY)
-1023		
+ENTRY 				BASE VIRTUAL ADDRESS 		POINTS TO (LOGICALLY)
+956 (3bc)			ef000000					pages - where the user can read the pages data structure.
+957	(3bd)			ef400000					kern_pgdir
+959 (3bf)			efc00000					bootstack - for kernel stack
+960	(3c0)			f0000000					00000000		
+960-975	(3c1-3cf)	f0400000					00400000-03fff000
+976 (3d0)			f4000000					04000000
+977-1023 (3d1-3ff) 	f4400000					this and the above previous 3 entries are mapping the entire physical memory into the VA space above KERNBASE.
+
+
+3.
+The user programs will not be able to read/write to the kernel's memory as any memory access has to go through page translation first after paging has been enabled, and the PTEs for the pages corresponding to the kernel's memory have permission set such (PTE_U bit is set to 0) that the user will not be able to translate those VAs. Any attempt to do so would lead to a page fault.
+
+
+4.
+256MB is the maximum amount of physical memory supported. This is because the entire physical address space is mapped above the KERNBASE (0xf0000000). But as we are using 32-bit addresses, the address space available above KERNBASE is [f0000000, ffffffff] which corresponds to 2^28 memory addresses. Hence, only 256MB of physical memory can be mapped.
+
 
 5.
-The space overhead is in the form of the page tables and the page directories we have to maintain.
+The space overhead is in the form of the 'pages' data structure that we need to maintain. As there's 256MB of maximum physical memory, thus there are 2^16 physical pages. And corresponding to each page we allocate a 'struct PageInfo'. 
+Thus total overhead = 2^16 * sizeof(struct PageInfo) = 2^16 * 8 bytes = 512KB.
+
+The space overhead is in the form of the page tables and the page directories we have to 
+maintain. A page table/directory is 4KB in size. For mapping the entire 4GB VA space, we need at least 1 page directory (4KB) and 2^10 page tables (4MB) corresponding to each PDE. Thus total overhead is 4KB+4MB.
+
 
 6. 
 We transition to running at EIP above KERNBASE when after enabling paging, we execute this code:
