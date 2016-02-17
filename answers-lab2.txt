@@ -6,10 +6,10 @@ ENTRY 				BASE VIRTUAL ADDRESS 		POINTS TO (LOGICALLY)
 956 (3bc)			ef000000					pages - where the user can read the pages data structure.
 957	(3bd)			ef400000					kern_pgdir
 959 (3bf)			efc00000					bootstack - for kernel stack
-960	(3c0)			f0000000					00000000		
+960	(3c0)			f0000000					00000000 - this this and the next 3 entries are mapping the entire physical memory into the VA space above KERNBASE.	
 960-975	(3c1-3cf)	f0400000					00400000-03fff000
 976 (3d0)			f4000000					04000000
-977-1023 (3d1-3ff) 	f4400000					this and the above previous 3 entries are mapping the entire physical memory into the VA space above KERNBASE.
+977-1023 (3d1-3ff) 	f4400000					04400000
 
 
 3.
@@ -17,15 +17,19 @@ The user programs will not be able to read/write to the kernel's memory as any m
 
 
 4.
-256MB is the maximum amount of physical memory supported. This is because the entire physical address space is mapped above the KERNBASE (0xf0000000). But as we are using 32-bit addresses, the address space available above KERNBASE is [f0000000, ffffffff] which corresponds to 2^28 memory addresses. Hence, only 256MB of physical memory can be mapped.
+There are two answers depending on whether the entire physical address space is mmapped above the KERNBASE in the VA space or not. 
+If it is, then 256MB is the maximum amount of physical memory supported. This is because the entire physical address space is mapped above the KERNBASE (0xf0000000). But as we are using 32-bit addresses, the address space available above KERNBASE is [f0000000, ffffffff] which corresponds to 2^28 memory addresses. Hence, only 256MB of physical memory can be mapped.
+But if it isn't (as is the case with Linux) then we can have upto 4GB physical memory with 32 bit addresses. 
 
 
 5.
-The space overhead is in the form of the 'pages' data structure that we need to maintain. As there's 256MB of maximum physical memory, thus there are 2^16 physical pages. And corresponding to each page we allocate a 'struct PageInfo'. 
+The space overhead will be in the form of the 'pages' data structure and the page tables/directories that we will need to maintain. 
+For the 'pages' data structure assuming there's 256MB of physical memory, thus there are 2^16 physical pages. And corresponding to each page we allocate a 'struct PageInfo'. 
 Thus total overhead = 2^16 * sizeof(struct PageInfo) = 2^16 * 8 bytes = 512KB.
 
-The space overhead is in the form of the page tables and the page directories we have to 
-maintain. A page table/directory is 4KB in size. For mapping the entire 4GB VA space, we need at least 1 page directory (4KB) and 2^10 page tables (4MB) corresponding to each PDE. Thus total overhead is 4KB+4MB.
+For the page tables overhead will be huge if we had a monolithic page table which will consume 4MB or 1000 pages of memory. 
+
+This overhead can be broken down if we use hierarchical page tables instead. For instance a we can have a top level page directory with entries containing information of lower level page tables. Now, a page table/directory is 4KB in size. For mapping the entire 4GB VA space, we need at least 1 page directory (4KB) and 2^10 page tables (4MB) corresponding to each PDE. Thus total overhead is 4KB+4MB. But in this case we only need to keep those page tables in the physical memory that we need and the rest may be swapped out to the disk. Thus the effective overhead is much less.
 
 
 6. 
