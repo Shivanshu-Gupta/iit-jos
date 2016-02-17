@@ -458,19 +458,32 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
 	
-	// check if
-	struct PageInfo *oldpp = page_lookup(pgdir, va, NULL); 
+	// struct PageInfo *oldpp = page_lookup(pgdir, va, NULL); 
 	
-	page_remove(pgdir, va);
+	// page_remove(pgdir, va);
 	
-	if(oldpp != NULL && page2pa(oldpp) == page2pa(pp)){
-		pp = page_alloc(ALLOC_ZERO);
-	}
+	// if(oldpp != NULL && page2pa(oldpp) == page2pa(pp)){
+	// 	pp = page_alloc(ALLOC_ZERO);
+	// }
 
 	pte_t *pte = pgdir_walk(pgdir, va, 1);
 	
 	if(!pte)
 		return -E_NO_MEM;
+
+	if(*pte & PTE_P) {
+		if(PTE_ADDR(*pte) == page2pa(pp)) {
+			// page mapped to the same PP.
+			// only need to update permissions.
+			*pte = page2pa(pp) | perm | PTE_P;
+			return 0;
+		} else {
+			// remove mapping if some other physical page is mapped
+			// also invalidates the tlb entry.
+			page_remove(pgdir, va);
+		}
+	}
+
 	*pte = page2pa(pp) | perm | PTE_P;
 	pp->pp_ref++;
 	return 0;
@@ -492,7 +505,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
 	pte_t* pte = pgdir_walk(pgdir, va, 0);
-	if(pte != NULL) {
+	if(pte != NULL && *pte | PTE_P) {
 		if(pte_store != NULL)
 			*pte_store = pte;
 		return pa2page(PTE_ADDR(*pte));
