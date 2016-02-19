@@ -1,0 +1,45 @@
+1. mystery_t will uintptr_t
+
+
+2. 
+ENTRY 				BASE VIRTUAL ADDRESS 		POINTS TO (LOGICALLY)
+956 (3bc)			ef000000					pages - where the user can read the pages data structure.
+957	(3bd)			ef400000					kern_pgdir
+959 (3bf)			efc00000					bootstack - for kernel stack
+960	(3c0)			f0000000					00000000 - this this and the next 3 entries are mapping the entire physical memory into the VA space above KERNBASE.	
+960-975	(3c1-3cf)	f0400000					00400000-03fff000
+976 (3d0)			f4000000					04000000
+977-1023 (3d1-3ff) 	f4400000					04400000
+
+
+3.
+The user programs will not be able to read/write to the kernel's memory as any memory access has to go through page translation first after paging has been enabled, and the PTEs for the pages corresponding to the kernel's memory have permission set such (PTE_U bit is set to 0) that the user will not be able to translate those VAs. Any attempt to do so would lead to a page fault.
+
+
+4.
+There are two answers depending on whether the entire physical address space is mmapped above the KERNBASE in the VA space or not. 
+If it is, then 256MB is the maximum amount of physical memory supported. This is because the entire physical address space is mapped above the KERNBASE (0xf0000000). But as we are using 32-bit addresses, the address space available above KERNBASE is [f0000000, ffffffff] which corresponds to 2^28 memory addresses. Hence, only 256MB of physical memory can be mapped.
+But if it isn't (as is the case with Linux) then we can have upto 4GB physical memory with 32 bit addresses. 
+
+
+5.
+The space overhead will be in the form of the 'pages' data structure and the page tables/directories that we will need to maintain. 
+For the 'pages' data structure assuming there's 256MB of physical memory, thus there are 2^16 physical pages. And corresponding to each page we allocate a 'struct PageInfo'. 
+Thus total overhead = 2^16 * sizeof(struct PageInfo) = 2^16 * 8 bytes = 512KB.
+
+For the page tables overhead will be huge if we had a monolithic page table which will consume 4MB or 1000 pages of memory. 
+
+This overhead can be broken down if we use hierarchical page tables instead. For instance a we can have a top level page directory with entries containing information of lower level page tables. Now, a page table/directory is 4KB in size. For mapping the entire 4GB VA space, we need at least 1 page directory (4KB) and 2^10 page tables (4MB) corresponding to each PDE. Thus total overhead is 4KB+4MB. But in this case we only need to keep those page tables in the physical memory that we need and the rest may be swapped out to the disk. Thus the effective overhead is much less.
+
+
+6. 
+We transition to running at EIP above KERNBASE when after enabling paging, we execute this code:
+
+mov		$relocated, eax
+jmp 	$eax
+
+As the address $relocated is above the KERNBASE, we will now be excuting code at VA's above KERNBASE.
+
+We are able to continue executing code at low EIP as thee entry_pgdir contains entries for 2 page tables, one mapping the VA's [0x0, 0x400000) to PA's [0x0, 0x400000), and the other mapping the VA's [0xf0000000, 0xf0400000) to PA's [0x0, 0x400000). As the kernel is loaded at lower addresses, both the VA's (0x00000+i) as well as (0xf0000000+i) will map to the PA (0x00000+i).
+
+This transition is necessary as we want to use the addresses below the KERNBASE for the user processes and KERNEL code 

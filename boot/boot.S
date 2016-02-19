@@ -5,13 +5,19 @@
 # memory at physical address 0x7c00 and starts executing in real mode
 # with %cs=0 %ip=7c00.
 
+# Selector : 14 bit index - 1 bit Table Indicator - 1 bit RPL
+# CS = 0x00001000 => index = 1, TI = 0 (GDT), RPL = 0 (Highest privilege)
+# DS = 0x00010000 => index = 2, TI = 0 (GDT), RPL = 0
+# index 0 in GDT is null segment descriptor.
+# Segment descriptors are 8 bytes in size => addr = gdt + 8 * index
+# Descriptors have a hidden portion loaded with the descriptor by the processor.
 .set PROT_MODE_CSEG, 0x8         # kernel code segment selector
 .set PROT_MODE_DSEG, 0x10        # kernel data segment selector
 .set CR0_PE_ON,      0x1         # protected mode enable flag
 
 .globl start
 start:
-  .code16                     # Assemble for 16-bit mode
+  .code16	# directive telling GASM to generate 16-bit code
   cli                         # Disable interrupts
   cld                         # String operations increment
 
@@ -51,10 +57,13 @@ seta20.2:
   movl    %eax, %cr0
   
   # Jump to next instruction, but in 32-bit code segment.
-  # Switches processor into 32-bit mode.
-  ljmp    $PROT_MODE_CSEG, $protcseg
-
-  .code32                     # Assemble for 32-bit mode
+  # Required to switch processor into 32-bit mode.
+  # CS will change -> processor will read GDT and 
+  # change its internal segmentation settings.
+  ljmp    $PROT_MODE_CSEG, $protcseg	# ljmp $x08, 0x7c32
+  # now CS:EIP = 0x08:0x7c32
+  
+  .code32 	# directive telling GASM to genereate 32-bit code
 protcseg:
   # Set up the protected-mode data segment registers
   movw    $PROT_MODE_DSEG, %ax    # Our data segment selector
@@ -63,9 +72,16 @@ protcseg:
   movw    %ax, %fs                # -> FS
   movw    %ax, %gs                # -> GS
   movw    %ax, %ss                # -> SS: Stack Segment
+  # logical addersses now map directly to physical addresses
+  # as the segment descriptos have base = 0, t = 4GB
+  # so linear address = logical address and paging is disbled.
   
   # Set up the stack pointer and call into C.
-  movl    $start, %esp
+  movl    $start, %esp 		# mov 0x7c00, esp
+  # we choose 0x7c00 to be top of stack as 0xa0000-0x100000
+  # is littered with device memory regions and xV6 kernel will 
+  # be placed at 0x100000.
+
   call bootmain
 
   # If bootmain returns (it shouldn't), loop.
