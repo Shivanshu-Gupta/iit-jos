@@ -1,13 +1,16 @@
 #include <inc/mmu.h>
 
-# Start the CPU: switch to 32-bit protected mode, jump into C.
+# Start the CPU: 
+# load gdt, switch to 32-bit protected mode, setup stack pointer, jump to C.
+# 
 # The BIOS loads this code from the first sector of the hard disk into
 # memory at physical address 0x7c00 and starts executing in real mode
 # with %cs=0 %ip=7c00.
+# %esp will be set to 0x7c00 so that c code can execute.
 
-# Selector : 14 bit index - 1 bit Table Indicator - 1 bit RPL
-# CS = 0x00001000 => index = 1, TI = 0 (GDT), RPL = 0 (Highest privilege)
-# DS = 0x00010000 => index = 2, TI = 0 (GDT), RPL = 0
+# Selector : 13 bit index - 1 bit Table Indicator - 2 bit RPL
+# CS = 0x8 = 00001/0/00 => index = 1, TI = 0 (GDT), RPL = 0 (Highest privilege)
+# DS = 0x10 = 00010/0/00 => index = 2, TI = 0 (GDT), RPL = 0
 # index 0 in GDT is null segment descriptor.
 # Segment descriptors are 8 bytes in size => addr = gdt + 8 * index
 # Descriptors have a hidden portion loaded with the descriptor by the processor.

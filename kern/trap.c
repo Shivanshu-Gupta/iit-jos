@@ -58,6 +58,7 @@ static const char *trapname(int trapno)
 	return "(unknown trap)";
 }
 
+extern int vectors;
 
 void
 trap_init(void)
@@ -65,7 +66,20 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-
+	
+	// CODE FOR CHALLENGE PROBLEM 1
+	int i = 0;
+	for(i=0; i<20; i++) {
+		if(i != 3)  {
+			SETGATE(idt[i],	0, GD_KT, *(&vectors + i), 0);	
+		}
+		else {
+			// setting the DPL to 0 will cause a GPF instead of break point exception.
+			SETGATE(idt[i],	0, GD_KT, *(&vectors + i), 3);	
+		}
+	}
+	SETGATE(idt[48], 0, GD_KT, *(&vectors + 20), 3);
+	
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -143,6 +157,20 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	switch(tf->tf_trapno) {
+		case 3:
+			monitor(tf);
+			return;
+		case 14:
+			page_fault_handler(tf);
+			return;
+		case 48:
+			tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, 
+				tf->tf_regs.reg_ecx, tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
+			return;
+		default:
+			break;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -202,7 +230,10 @@ page_fault_handler(struct Trapframe *tf)
 	fault_va = rcr2();
 
 	// Handle kernel-mode page faults.
-
+	if(!(tf->tf_cs & 3)) {
+		// panic iff CPL = 0
+		panic("Kernel Page faulted!");
+	}
 	// LAB 3: Your code here.
 
 	// We've already handled kernel-mode exceptions, so if we get here,
