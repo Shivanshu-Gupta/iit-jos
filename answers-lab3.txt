@@ -4,29 +4,43 @@ You will need to do all of the regular exercises described in the lab and the (o
 Q1    What is the purpose of having an individual handler function for each exception/interrupt? (i.e., if all exceptions/interrupts were delivered to the same handler, what feature that exists in the current implementation could not be provided?)
 
 ANS:
-A singlle handler would not be able to handler the variety of interrupts that may occur.
-Different interrupts are meant to be raised by different entities. For eg, while a user program may be allowed to raise a breakpoint interrupt, only the hardware should be allowed to raise a page fault. Having a single handler would either 
-
-
-
+trap_dispatch requires the trapno field in the Trapframe to dispatch the trap. If we used a single handler function for all the traps we will not be able to give different trapno to different traps. It will also be difficult to determine whether to push a 0 for errcode.
 
 
 
 Q2    Did you have to do anything to make the user/softint program behave correctly? The grade script expects it to produce a general protection fault (trap 13), but softint's code says int $14. Why should this produce interrupt vector 13? What happens if the kernel actually allows softint's int $14 instruction to invoke the kernel's page fault handler (which is interrupt vector 14)?
 
 ANS:
-Interrupt vector 13 i.e. General protection fault was raised as the vector's interrupt gate's DPL in the IDT is set to 0 and so the user is not permitted to raise a page fault. If the softint's int $14 was allowed to invoke the kernel's page fault handler, then 
+Interrupt vector 13 i.e. General protection fault was raised as the vector's interrupt gate's DPL in the IDT is set to 0 and so the user is not permitted to raise a page fault. If the softint's int $14 was allowed to invoke the kernel's page fault handler, then the Trapframe will not have the correct error code as that is put in by the processor when it raises the page fault.
 
 
 
 Q3    The break point test case will either generate a break point exception or a general protection fault depending on how you initialized the break point entry in the IDT (i.e., your call to SETGATE from trap_init). Why? How do you need to set it up in order to get the breakpoint exception to work as specified above and what incorrect setup would cause it to trigger a general protection fault?
 
 ANS:
-If the DPL of the entry of the vector in the IDT is set to 0 instead of 3, protection fault instead of breakpoint exception.
+If the DPL of the entry of the vector in the IDT is set to 0 instead of 3, then the user will not have suffficient permissions to raise the breakpoint exception and there would be a protection fault instead.
 
 
 Q4    What do you think is the point of these mechanisms, particularly in light of what the user/softint test program does?
 
 ANS:
-It prevents the user programs to raise some interrupts.
+It prevents the user programs to raise some interrupts. In case of user/softint program in particular, it prevents the user from raising the page fault as then the user could raise the page fault even for pages which are already mapped. Also, if the user were allowed to raise interrupts which otherwise only the hardware is allowed to raise then the user could trick the kernel into thinking that the hardware has completed a task even when it has not.
+
+
+
+CHALLENGE:
+
+I did the first 2 challenge problems:
+
+1. Cleaned up the repetitive code in trapentry.s and trap_init() in trap.c. In trapentry.s, I used .irp directive for gasp, to create all the entry points for the differeent traps. This reduced the repetitive code in trapentry.s to just a list of trap numbers. I also changed the TRAPHANDLER macros to create a table of entry points which I used in trap_init() to setup the IDT.
+
+2. Implemented the stepi and continue commands in monitor.c which can be used to step through instructions after Breakpoint or debug exceptions and continue execution respectively, While stepi sets the TF in the EFLAGS, to tell the kernel to insert a debug exception after every instruction, continue unsets it.
+
+
+
+LEARNING:
+1. Learnt how a new process is created by the kernel.
+2. Learnt how trap handling is done.
+2. In particular, learnt how system calls are implemented.
+
 

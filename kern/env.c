@@ -188,46 +188,14 @@ env_setup_vm(struct Env *e)
 	// LAB 3: Your code here.
 	p->pp_ref++;
 	e->env_pgdir = (pde_t *) page2kva(p);
-	struct PageInfo *pp;
+
+	for(i=0; i < PDX(UTOP); i++) {
+		e->env_pgdir[i] = 0;
+	}
+	for(i = PDX(UTOP); i<NPDENTRIES; i++) {
+		e->env_pgdir[i] = kern_pgdir[i];
+	}
 	
-	for(i = 0; i < npages * sizeof(struct PageInfo); i += PGSIZE) {
-		pp = (struct PageInfo *)pa2page((physaddr_t)(PADDR(pages) + i));
-		page_insert(e->env_pgdir, pp, (void *)(UPAGES + i), PTE_U | PTE_P);
-	}
-
-	//////////////////////////////////////////////////////////////////////
-	// Map the 'envs' array read-only by the user at linear address UENVS
-	// (ie. perm = PTE_U | PTE_P).
-	for(i = 0; i < NENV * sizeof(struct Env); i += PGSIZE) {
-		pp = (struct PageInfo *)pa2page((physaddr_t)(PADDR(envs) + i));
-		page_insert(e->env_pgdir, pp, (void *)(UENVS + i), PTE_U | PTE_P);
-	}
-
-	//////////////////////////////////////////////////////////////////////
-	// Use the physical memory that 'bootstack' refers to as the kernel
-	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
-	// We consider the entire range from [KSTACKTOP-PTSIZE, KSTACKTOP)
-	// to be the kernel stack, but break this into two pieces:
-	//     * [KSTACKTOP-KSTKSIZE, KSTACKTOP) -- backed by physical memory
-	//     * [KSTACKTOP-PTSIZE, KSTACKTOP-KSTKSIZE) -- not backed; so if
-	//       the kernel overflows its stack, it will fault rather than
-	//       overwrite memory.  Known as a "guard page".
-	//     Permissions: kernel RW, user NONE
-	for(i = 0; i < KSTKSIZE; i+=PGSIZE){
-		pp = (struct PageInfo *)pa2page((physaddr_t)PADDR(bootstack + i));
-		page_insert(e->env_pgdir, pp, (void *)(KSTACKTOP - KSTKSIZE + i), PTE_P | PTE_W);
-	}
-
-	//////////////////////////////////////////////////////////////////////
-	// Map all of physical memory at KERNBASE.
-	// Permissions: kernel RW, user NONE
-	// Your code goes here:
-	for(i = 0; i < ((1<<20) - KERNBASE/PGSIZE); i++) {
-		// when physical memory finishes, start back from 0.
-		pp = (struct PageInfo *)pa2page((physaddr_t)((i%npages)*PGSIZE));
-		page_insert(e->env_pgdir, pp, (void *)(KERNBASE + i*PGSIZE), PTE_P | PTE_W);
-	}
-
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
@@ -315,17 +283,16 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
-	// uintptr_t begin = ROUNDDOWN(va), end = ROUNDUP(va + len);
+	uintptr_t addr = ROUNDDOWN((uintptr_t)va, PGSIZE), end = ROUNDUP((uintptr_t)va + len, PGSIZE);
 	struct PageInfo *p = NULL;
-	size_t i;
-	for(i = 0; i < len; i += PGSIZE) {		
+	for(;addr < end; addr += PGSIZE) {		
 		// Allocate a pages for the region
 		if (!(p = page_alloc(0))){
 			panic("region_alloc: %e", -E_NO_MEM);
 			// return -E_NO_MEM;
 		}
 		//map the new page
-		if(page_insert(e->env_pgdir, p, (void *)(va + i), PTE_P | PTE_U | PTE_W) < 0) {
+		if(page_insert(e->env_pgdir, p, (void *)addr, PTE_P | PTE_U | PTE_W) < 0) {
 			panic("region_alloc: %e", -E_NO_MEM);
 			// return -E_NO_MEM;
 		}
@@ -434,7 +401,12 @@ env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
 	struct Env *e;
-	env_alloc(&e, 0);
+	
+	int res = env_alloc(&e, 0);
+	if(res == -E_NO_FREE_ENV) 
+		panic("env_create : No Free Environment");
+	if(res == -E_NO_MEM) 
+		panic("env_create : Insufficient Memory");
 	load_icode(e, binary);
 	
 	e->env_type = type;
