@@ -1,0 +1,20 @@
+i386_init:
+	- cons_init	
+	- mem_init
+	- env_init
+	- trap_init
+	- mp_init	-	parse multiprocessor configuration table 
+	- lapic_init	-	init BSP's local advanced programmable interrupt controller
+	- pic_init
+	- boot_aps	- write entry code
+				- for each additional processor:
+					- set mpentry_kstack = this AP's sp and boot it.
+
+mp_main	-	each AP starts up in this function
+
+
+Q3)	
+works probably because the entire envs[] is mapped in all pgdirs (including kern_pgdir) at UENVS.
+
+Q4)
+The registers must be saved so that when the process is rescheduled it can run as though nothing happened. whenver a context switch takes place, the previous processes registers get pushed on to the kernel stack as a part of its trapframe. A copy of this Trapframe is also stored in the PCB i.e. struct Env corresponding to that process. When the process is rescheduled the this trapframe is 'popped'.

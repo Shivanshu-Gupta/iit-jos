@@ -65,6 +65,7 @@ static const char *trapname(int trapno)
 	return "(unknown trap)";
 }
 
+extern int vectors;
 
 void
 trap_init(void)
@@ -72,7 +73,20 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-
+	
+	// CODE FOR CHALLENGE PROBLEM 1
+	int i = 0;
+	for(i=0; i<20; i++) {
+		if(i != 3)  {
+			SETGATE(idt[i],	0, GD_KT, *(&vectors + i), 0);	
+		}
+		else {
+			// setting the DPL to 0 will cause a GPF instead of break point exception.
+			SETGATE(idt[i],	0, GD_KT, *(&vectors + i), 3);	
+		}
+	}
+	SETGATE(idt[48], 0, GD_KT, *(&vectors + 20), 3);
+	
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -103,20 +117,24 @@ trap_init_percpu(void)
 	// user space on that CPU.
 	//
 	// LAB 4: Your code here:
+	int i;
+	for(i = 0; i < NCPU; i++) {
+		// Setup a TSS so that we get the right stack
+		// when we trap to the kernel.
+		cpus[i].cpu_ts.ts_esp0 = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+		cpus[i].cpu_ts.ts_ss0 = GD_KD;
 
-	// Setup a TSS so that we get the right stack
-	// when we trap to the kernel.
-	ts.ts_esp0 = KSTACKTOP;
-	ts.ts_ss0 = GD_KD;
+		// Initialize the TSS slot of the gdt.
+		gdt[(GD_TSS0 >> 3) + i] = SEG16(STS_T32A, (uint32_t) (&cpus[i].cpu_ts),
+						sizeof(struct Taskstate) - 1, 0);
+		gdt[(GD_TSS0 >> 3) + i].sd_s = 0;
 
-	// Initialize the TSS slot of the gdt.
-	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
-					sizeof(struct Taskstate) - 1, 0);
-	gdt[GD_TSS0 >> 3].sd_s = 0;
+	}
 
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0);
+	// TSS Selector loaded should be that of the current cpu.
+	ltr(GD_TSS0 + (thiscpu->cpu_id<<3));
 
 	// Load the IDT
 	lidt(&idt_pd);
@@ -173,6 +191,32 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	switch(tf->tf_trapno) {
+		case 1:
+		// T_DEBUG
+			monitor(tf);
+			return;
+		case 3:
+		// T_BRKPT
+			monitor(tf);
+			return;
+		case 14:
+		// T_PGFLT
+			page_fault_handler(tf);
+			return;
+		case 48:
+		// T_SYSCALL
+			tf->tf_regs.reg_eax = 
+				syscall(tf->tf_regs.reg_eax, 
+						tf->tf_regs.reg_edx, 
+						tf->tf_regs.reg_ecx, 
+						tf->tf_regs.reg_ebx, 
+						tf->tf_regs.reg_edi, 
+						tf->tf_regs.reg_esi);
+			return;
+		default:
+			break;
+	}
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -224,7 +268,8 @@ trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		assert(curenv);
-
+		lock_kernel();
+		
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
 			env_free(curenv);
@@ -266,7 +311,10 @@ page_fault_handler(struct Trapframe *tf)
 	fault_va = rcr2();
 
 	// Handle kernel-mode page faults.
-
+	if(!(tf->tf_cs & 3)) {
+		// panic iff CPL = 0
+		panic("Kernel Page faulted!");
+	}
 	// LAB 3: Your code here.
 
 	// We've already handled kernel-mode exceptions, so if we get here,

@@ -74,7 +74,7 @@ serial_putc(int c)
 		delay();
 
 	//printf to shell using serial interface. code to follow
-
+	outb(COM1 + COM_TX, c);
 }
 
 static void
@@ -194,10 +194,17 @@ cga_putc(int c)
 	}
 
 	// What is the purpose of this?
+	// This is an implementation of the scroll
+	// CRT_ROWS = 25
+	// CRT_COLS	= 80
+	// CRT_SIZE	= (CRT_ROWS * CRT_COLS)
 	if (crt_pos >= CRT_SIZE) {
 		int i;
 
+		/*move text up*/
 		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
+		
+		/*clear (just) the bottom line*/
 		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
 			crt_buf[i] = 0x0700 | ' ';
 		crt_pos -= CRT_COLS;

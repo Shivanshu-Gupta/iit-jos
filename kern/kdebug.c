@@ -142,7 +142,10 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 		// Make sure this memory is valid.
 		// Return -1 if it is not.  Hint: Call user_mem_check.
 		// LAB 3: Your code here.
-
+		if(user_mem_check(curenv, (void *)usd, sizeof(struct UserStabData), 
+			PTE_P | PTE_U) < 0) {
+			return -1;	
+		} 		
 		stabs = usd->stabs;
 		stab_end = usd->stab_end;
 		stabstr = usd->stabstr;
@@ -150,6 +153,11 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 
 		// Make sure the STABS and string table memory is valid.
 		// LAB 3: Your code here.
+		user_mem_assert(curenv, usd, sizeof(struct UserStabData), PTE_P | PTE_U);
+		user_mem_assert(curenv, stabs, (size_t)stab_end - (size_t)stabs, 
+			PTE_P | PTE_U);
+		user_mem_assert(curenv, stabstr, (size_t)stabstr_end - (size_t)stabstr, 
+			PTE_P | PTE_U);
 	}
 
 	// String table validity checks
@@ -205,6 +213,38 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	//	which one.
 	// Your code here.
 
+    if (lfun <= rfun) {
+        // If lfun <= rfun, it's a function span search.
+        // In this case, n_value is in order!
+        // So use binary search.
+        stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+
+        if (lline > rline)
+            return -1;
+    } else {
+        // Note that if lfun > rfun, lline, rline == lfile, rfile,
+        // which means a file span search.
+        // In this case, n_value is not in order!
+        // Cannot use binary search, so just sequential search.
+        int idx;
+        for (idx = lline; idx <= rline; ++idx) {
+            if (stabs[idx].n_type == N_SLINE) {
+                uintptr_t stab_addr = stabs[idx].n_value;
+                if (stab_addr == addr) {
+                    lline = idx;
+                    break;
+                } else if (stab_addr > addr) {
+                    lline = idx - 1;
+                    break;
+                }
+            }
+        }
+
+        if (idx > rline)
+            return -1;
+    }
+
+    info->eip_line = stabs[lline].n_desc;
 
 	// Search backwards from the line number for the relevant filename
 	// stab.

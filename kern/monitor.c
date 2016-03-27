@@ -25,6 +25,9 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display Stack backtrace", mon_backtrace },
+	{ "stepi", "Step through instructions", mon_stepi },
+	{ "continue", "Continue execution", mon_continue }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -60,10 +63,61 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+	cprintf("Stack backtrace:\n");
+	uint32_t fn_line;
+	uint32_t ebp, eip;	
+	struct Eipdebuginfo info;
+
+	next:
+	eip = (uintptr_t)&&next;
+	debuginfo_eip((uintptr_t)eip, &info);
+	cprintf("current eip=%08x\n", eip);
+	cprintf("\t %s:%d: ", info.eip_file, info.eip_line);
+	fn_line = eip - info.eip_fn_addr;
+	cprintf("%.*s+%d\n", info.eip_fn_namelen, info.eip_fn_name, fn_line);
+	//cprintf("\t fnargs: %d\n", info.eip_fn_narg);
+	
+	ebp = read_ebp();
+	while(ebp>0){
+		eip = ((uint32_t*)ebp)[1];
+		debuginfo_eip((uintptr_t)eip, &info);	
+		cprintf("ebp %08x  ",ebp);
+		cprintf("eip %08x  ",eip);
+		cprintf("args %08x ",((uint32_t*)ebp)[2]);	
+		cprintf("%08x ",((uint32_t*)ebp)[3]);
+		cprintf("%08x ",((uint32_t*)ebp)[4]);
+		cprintf("%08x ",((uint32_t*)ebp)[5]);
+		cprintf("%08x\n",((uint32_t*)ebp)[6]);
+		cprintf("\t %s:%d: ", info.eip_file, info.eip_line);
+		fn_line = eip - info.eip_fn_addr;
+		cprintf("%.*s+%d\n", info.eip_fn_namelen, info.eip_fn_name, fn_line);
+		//cprintf("\t fnargs: %d\n", info.eip_fn_narg);
+		ebp = ((uint32_t*)ebp)[0];
+	}
 	return 0;
 }
 
+int
+mon_stepi(int argc, char **argv, struct Trapframe *tf)
+{
+	// start single stepping only if a Breakpoint Exception 
+	// or a Debug Exception occured.
+	if(tf == NULL || !(tf->tf_trapno == T_BRKPT || tf->tf_trapno == T_DEBUG)) {
+		cprintf("can't stepi after a non breakpoint/debug interrupt.\n");
+		return 0;
+	}
 
+	tf->tf_eflags |= FL_TF;
+	cprintf("eip : 0x%08x\n",tf->tf_eip);
+	return -1;
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
 
 /***** Kernel monitor command interpreter *****/
 
