@@ -31,10 +31,8 @@ sched_yield(void)
 	// LAB 4: Your code here.
 	int i, start = 0;
 	if(curenv) {
-		curenv->env_status = ENV_RUNNABLE;
 		start = curenv - envs + 1;
 	}
-	cprintf("start = %d\n", start);
 	for(i = 0; i < NENV; i++) {
 		idle = &envs[(start + i)%NENV]; 
 		if(idle->env_status == ENV_RUNNABLE) {
@@ -42,7 +40,11 @@ sched_yield(void)
 			env_run(idle);
 		}
 	}
-	cprintf("Didn't find any environment!! i = %d\n", i);
+
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING)
+		env_run(curenv);
+
+	// cprintf("Didn't find any environment!! i = %d\n", i);
 	// sched_halt never returns
 	sched_halt();
 }

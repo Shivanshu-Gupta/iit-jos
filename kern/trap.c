@@ -85,7 +85,12 @@ trap_init(void)
 			SETGATE(idt[i],	0, GD_KT, *(&vectors + i), 3);	
 		}
 	}
-	SETGATE(idt[48], 0, GD_KT, *(&vectors + 20), 3);
+	
+	for(i=0; i<16; i++) {
+		SETGATE(idt[IRQ_OFFSET + i], 0, GD_KT, *(&vectors + IRQ_OFFSET + i), 0);	
+	}
+
+	SETGATE(idt[48], 0, GD_KT, *(&vectors + 48), 3);
 	
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -191,6 +196,7 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	uint32_t temp;
 	switch(tf->tf_trapno) {
 		case 1:
 		// T_DEBUG
@@ -204,10 +210,17 @@ trap_dispatch(struct Trapframe *tf)
 		// T_PGFLT
 			page_fault_handler(tf);
 			return;
+		case IRQ_OFFSET + IRQ_TIMER:
+		// IRQ_TIMER
+			lapic_eoi();			
+			sched_yield();
+			return;
 		case 48:
 		// T_SYSCALL
+			temp = tf->tf_regs.reg_eax;
+			tf->tf_regs.reg_eax = 0;
 			tf->tf_regs.reg_eax = 
-				syscall(tf->tf_regs.reg_eax, 
+				syscall(temp, 
 						tf->tf_regs.reg_edx, 
 						tf->tf_regs.reg_ecx, 
 						tf->tf_regs.reg_ebx, 
@@ -269,7 +282,7 @@ trap(struct Trapframe *tf)
 		// LAB 4: Your code here.
 		assert(curenv);
 		lock_kernel();
-		
+
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
 			env_free(curenv);
@@ -288,7 +301,6 @@ trap(struct Trapframe *tf)
 	// Record that tf is the last real trapframe so
 	// print_trapframe can print some additional information.
 	last_tf = tf;
-
 	// Dispatch based on what type of trap occurred
 	trap_dispatch(tf);
 
@@ -349,7 +361,39 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	// cprintf("page_fault_handler\n");
+	if(curenv->env_pgfault_upcall) {
+		// cprintf("ready to push trapframe\n");
+		// The env has setup a page fault handler and 
+		// has allocated the space for the exception stack.
+		uintptr_t uxs_top = UXSTACKTOP;
+		if(tf->tf_esp >= UXSTACKTOP-PGSIZE && tf->tf_esp < UXSTACKTOP) {
+			// recursive fault - occurred inside the page fault handler itself.
+			// leave space for a word - the eip will be written here.
+			uxs_top = tf->tf_esp - 4;
+		}
+		struct UTrapframe *utf = (struct UTrapframe *)(uxs_top) - 1;
+		user_mem_assert(curenv, utf, sizeof(struct UTrapframe), PTE_W);
 
+		if((int)utf >= (UXSTACKTOP-PGSIZE)) {
+			// enter here only if there's enough space on the exception stack.
+			
+			utf->utf_fault_va = fault_va;
+			utf->utf_err = tf->tf_err;
+			utf->utf_regs = tf->tf_regs;
+			utf->utf_eip = tf->tf_eip;
+			utf->utf_eflags = tf->tf_eflags;
+			utf->utf_esp = tf->tf_esp;
+
+			tf->tf_esp = (uintptr_t)utf;
+			// set the eip to the address of the _pgfault_upcall that the kernel was
+			// asked to run when a page fault occurs in user mode. This _pgfault_upcall
+			// will run the C-_pgfault_handler the user provided.
+			tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+			// env_run(curenv);
+			return;
+		}
+	}
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);

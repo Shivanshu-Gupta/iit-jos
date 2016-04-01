@@ -15,7 +15,6 @@ primeproc(void)
 {
 	int i, id, p;
 	envid_t envid;
-
 	// fetch a prime from our left neighbor
 top:
 	p = ipc_recv(&envid, 0, 0);
