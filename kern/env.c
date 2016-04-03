@@ -553,28 +553,30 @@ env_run(struct Env *e)
 
 	// LAB 3: Your code here.
 	// panic("env_run not yet implemented");
-	if(curenv && curenv->env_status == ENV_RUNNING) {
-		curenv->env_status = ENV_RUNNABLE;
+	
+	uint32_t x = rcr3();
+	if(curenv != e) {
+		// if(curenv != NULL) {
+		// 	cprintf("curenv = %x\n", curenv->env_id);
+		// }
+		// cprintf("e = %x\n", e->env_id);
+		if(curenv && curenv->env_status == ENV_RUNNING) {
+			curenv->env_status = ENV_RUNNABLE;
+		}
+		curenv = e;
+		curenv->env_status = ENV_RUNNING;
+		curenv->env_runs++;
+		curenv->env_cpunum = cpunum();
+		lcr3(PADDR(curenv->env_pgdir));
+	} else {
+		if(x != PADDR(curenv->env_pgdir)){
+			cprintf("cr3 = %x, env_pgdir_paddr = %x\n", x, PADDR(curenv->env_pgdir));
+		}
+		lcr3(PADDR(curenv->env_pgdir));
 	}
-	curenv = e;
-	e->env_status = ENV_RUNNING;
-	e->env_runs++;
-	lcr3(PADDR(e->env_pgdir));
+
+	// lcr3(PADDR(curenv->env_pgdir));
 	unlock_kernel();
-	env_pop_tf(&(e->env_tf));
-
-
-
-	// if(e != curenv) {
-	// 	if(curenv != NULL && curenv->env_status == ENV_RUNNING) {
-	// 		curenv->env_status = ENV_RUNNABLE;
-	// 	}
-	// 	curenv = e;
-	// 	curenv->env_status = ENV_RUNNING;
-	// 	curenv->env_runs++;
-	// 	lcr3(PADDR(e->env_pgdir));
-	// }
-	// unlock_kernel();
-	// env_pop_tf(&curenv->env_tf);
+	env_pop_tf(&(curenv->env_tf));
 }
 

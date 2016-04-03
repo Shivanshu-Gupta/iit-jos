@@ -30,13 +30,12 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 	int i, start = 0;
-	if(curenv) {
+	if(curenv != NULL) {
 		start = curenv - envs + 1;
 	}
 	for(i = 0; i < NENV; i++) {
 		idle = &envs[(start + i)%NENV]; 
 		if(idle->env_status == ENV_RUNNABLE) {
-			idle->env_cpunum = cpunum();
 			env_run(idle);
 		}
 	}
