@@ -1,0 +1,5 @@
+Q3)	
+works probably because the entire envs[] is mapped in all pgdirs (including kern_pgdir) at UENVS.
+
+Q4)
+The registers must be saved so that when the process is rescheduled it can run as though nothing happened. whenver a context switch takes place, the previous processes registers get pushed on to the kernel stack as a part of its trapframe. A copy of this Trapframe is also stored in the PCB i.e. struct Env corresponding to that process. When the process is rescheduled the this trapframe is 'popped'.
