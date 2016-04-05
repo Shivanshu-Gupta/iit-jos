@@ -1,5 +1,24 @@
+Q1) 
+MBOOTPHYS is required for the translation of link addresses to load addresses as the mpentry.S is linked by the linker above the KERNBASE but the code is loaded below KERNBASE at MPENTRY_ADDR. The translation is done dynamically at runtime by translatingg the offset from mpentry_start to an offset from MPENTRY_PADDR. 
+boot/boot.S doesn't need such a translation as paging takes care of this. Though the code is linked at KERNBASE, and loaded at 0, they are both mapped to the same physical locations in the page table.
+
+Q2)
+Issues will come up now as the trapframes of processes running on all the CPUs will now need to be multiplexed on the same stack so although the lock will prevent trapframes from getting broken up, following scenario might still happen:
+- process 0 on CPU0 pushes trapframe and enters kernel mode
+- process 1 on CPU1 pushes trapframe and enters kernel mode
+- process 0 on CPU0 pops trapframe and exits kernel mode.
+
+Here the process 0 will pop process 1's trapframe which is clearly wrong.
+
+
 Q3)	
-works probably because the entire envs[] is mapped in all pgdirs (including kern_pgdir) at UENVS.
+Pointer e be dereferenced both before and after the addressing switch because e is allocated on the kernel stack which lies above KERNBASE i.e. the kernel half of the virtual memory. This half's mappings are not changed even on when lcr3() changes the address context.
 
 Q4)
-The registers must be saved so that when the process is rescheduled it can run as though nothing happened. whenver a context switch takes place, the previous processes registers get pushed on to the kernel stack as a part of its trapframe. A copy of this Trapframe is also stored in the PCB i.e. struct Env corresponding to that process. When the process is rescheduled the this trapframe is 'popped'.
+The registers must be saved so that when the process is rescheduled it can run as though nothing happened. Whenver a context switch takes place, the previous processes registers get pushed on to the kernel stack as a part of its trapframe. A copy of this Trapframe is also stored in the PCB i.e. struct Env corresponding to that process. When the process is rescheduled, this trapframe is 'popped'.
+
+
+LEARNINGS:
+1. Learnt how multiprocessors boot up i.e. how first a sigle CPU boots up and then boots up the other CPUS.
+2. Learnt how pgfaults can be used to implement Copy-on-write fork.
+3. Learnt how IPC can be implemented using shared memory.
