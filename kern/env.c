@@ -334,7 +334,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 // load_icode panics if it encounters problems.
 //  - How might load_icode fail?  What might be wrong with the given input?
 //
-static void
+void
 load_icode(struct Env *e, uint8_t *binary)
 {
 	// Hints:
@@ -374,7 +374,6 @@ load_icode(struct Env *e, uint8_t *binary)
 	if(!elfhdr->e_entry) {
 		panic("load_icode: entry point undefined!");
 	}
-
 	e->env_tf.tf_eip = elfhdr->e_entry;
 	lcr3(PADDR(e->env_pgdir));
 

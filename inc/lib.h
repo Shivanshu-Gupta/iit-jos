@@ -45,6 +45,7 @@ envid_t	sys_getenvid(void);
 int	sys_env_destroy(envid_t);
 void	sys_yield(void);
 static envid_t sys_exofork(void);
+int	sys_exec(const char *prog, const char **argv);
 int	sys_env_set_status(envid_t env, int status);
 int	sys_env_set_pgfault_upcall(envid_t env, void *upcall);
 int	sys_page_alloc(envid_t env, void *pg, int perm);
@@ -77,7 +78,8 @@ envid_t	ipc_find_env(enum EnvType type);
 envid_t	fork(void);
 envid_t	sfork(void);	// Challenge!
 
-
+// exec.c
+int	exec(const char *prog, const char *arg0, ...);
 
 /* File open modes */
 #define	O_RDONLY	0x0000		/* open for reading only */
