@@ -82,7 +82,8 @@ KERN_BINFILES +=	user/sh \
 			user/echo \
 			user/factorial \
 			user/fibonacci \
-			user/help
+			user/date \
+			user/help 
 			
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))

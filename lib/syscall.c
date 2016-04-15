@@ -3,6 +3,7 @@
 #include <inc/syscall.h>
 #include <inc/lib.h>
 
+
 static inline int32_t
 syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
 {
@@ -110,8 +111,21 @@ sys_ipc_recv(void *dstva)
 {
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
+
 int
 sys_exec(const char *prog, const char ** argv)
 {
 	return syscall(SYS_exec, 1, (uint32_t)prog, (uint32_t)argv, 0, 0, 0);
+}
+
+int
+sys_wait(envid_t envid,int* status)
+{
+	return syscall(SYS_wait, 1, (uint32_t)envid, (uint32_t)status, 0, 0, 0);
+}
+
+void
+sys_date(struct rtcdate* r)
+{
+	syscall(SYS_date, 0, (uint32_t)r, 0, 0, 0, 0);
 }

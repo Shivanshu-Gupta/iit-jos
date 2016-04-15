@@ -44,15 +44,14 @@ readline(const char *prompt)
 struct Command {
 	const char *name;
 	const char *desc;
-	uint8_t *binary;
 };
 
 static struct Command commands[] = {
-	{ "hello", "Hello!"},
-	{ "help", "Display this list of commands"},
+	{ "help", "Display the list of commands"},
 	{ "echo", "Echo the message"},
 	{ "factorial", "Calculate factorial"},
-	{ "fibonacci", "Calculate nth fibonacci number with seed value 0 and 1"}
+	{ "fibonacci", "Calculate nth fibonacci number with seed value 0 and 1"},
+	{ "date", "Display the current date"}
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -66,6 +65,7 @@ runcmd(char *buf)
 	int argc;
 	const char *argv[MAXARGS];
 	int i;
+	int bg = 0;
 
 	// Parse the command buffer into whitespace-separated arguments
 	argc = 0;
@@ -87,6 +87,9 @@ runcmd(char *buf)
 			buf++;
 	}
 	argv[argc] = NULL;		// last argument needs to be null
+	
+	if(!strcmp(argv[argc-1], "&"))
+		bg = 1;
 
 	// Lookup and invoke the command
 	if (argc == 0)
@@ -96,13 +99,28 @@ runcmd(char *buf)
 		{			
 			cprintf("forking a new process\n");
 			int pid = fork();
+
 			if(pid < 0) {
 				cprintf("error in fork.\n");
 			} else if(pid == 0) {
 				sys_exec(argv[0], argv);
+				exit();
 			} else {
-				//we will have to wait on the child if & was not written by the user
-				cprintf("shell exiting now\n");
+				cprintf("this is parent and my child's pid is : %d\n",pid);
+				if(!bg){
+					int status;
+					while(!sys_wait(pid,&status))
+					{
+						if(status==1)
+						{
+							break;
+						}	
+					}
+					
+					cprintf("this is parent and my child: %d exited\n",pid);
+				}
+				
+				return 0;
 			}
 		}
 	}
@@ -122,7 +140,7 @@ umain(int argc, char **argv)
 	// cprintf("You can type hello!\n");
 
 	while (1) {
-		buf = readline("Sh> ");
+		buf = readline("$ ");
 		if (buf != NULL)
 			if (runcmd(buf) < 0)
 				break;

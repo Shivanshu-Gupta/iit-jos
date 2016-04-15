@@ -5,6 +5,7 @@
 #include <inc/string.h>
 #include <inc/assert.h>
 
+
 #include <kern/env.h>
 #include <kern/pmap.h>
 #include <kern/trap.h>
@@ -12,10 +13,13 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
-extern uint8_t _binary_obj_user_hello_start[];
+#include <kern/cpu.h>
+
+extern uint8_t _binary_obj_user_help_start[];
 extern uint8_t _binary_obj_user_echo_start[];
 extern uint8_t _binary_obj_user_factorial_start[];
 extern uint8_t _binary_obj_user_fibonacci_start[];
+extern uint8_t _binary_obj_user_date_start[];
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -39,6 +43,17 @@ sys_cgetc(void)
 {
 	return cons_getc();
 }
+
+
+// tell the date
+static void
+sys_date(struct rtcdate* r)
+{
+	cmostime(r);
+	// return 0;
+}
+
+
 
 // Returns the current environment's envid.
 static envid_t
@@ -414,29 +429,26 @@ static int
 // init_stack(envid_t envid, const char **argv, uintptr_t *init_esp)
 load_program(struct Env *e, uint8_t *binary, const char **argv)
 {
-	size_t string_size;
+	size_t args_len;
 	int argc, i, r;
-	char *string_store;
-	uintptr_t *argv_store;
+	char *args;
+	uintptr_t *arg_pointers;
 
 	// Count the number of arguments (argc)
-	// and the total amount of space needed for strings (string_size).
-	string_size = 0;
-	for (argc = 0; argv[argc] != 0; argc++)
-		string_size += strlen(argv[argc]) + 1;
+	// and the total amount of space needed for argv strings (args_len).
+	for (args_len = 0, argc = 0; argv[argc] != 0; argc++)
+		args_len += strlen(argv[argc]) + 1;
 
 	// Determine where to place the strings and the argv array.
-	// Set up pointers into the temporary page 'UTEMP'; we'll map a page
-	// there later, then remap that page at (USTACKTOP - PGSIZE).
-	// strings is the topmost thing on the stack.
-	string_store = (char*) UTEMP + PGSIZE - string_size;
+	// Set up pointers into the temporary page 'UTEMP'
+	args = (char*) UTEMP + PGSIZE - args_len;
 	// argv is below that.  There's one argument pointer per argument, plus
 	// a null pointer.
-	argv_store = (uintptr_t*) (ROUNDDOWN(string_store, 4) - 4 * (argc + 1));
+	arg_pointers = (uintptr_t*) (ROUNDDOWN(args, 4) - 4 * (argc + 1));
 
 	// Make sure that argv, strings, and the 2 words that hold 'argc'
 	// and 'argv' themselves will all fit in a single stack page.
-	if ((void*) (argv_store - 2) < (void*) UTEMP)
+	if ((void*) (arg_pointers - 2) < (void*) UTEMP)
 		return -E_NO_MEM;
 
 	// Allocate the single stack page at UTEMP.
@@ -444,12 +456,12 @@ load_program(struct Env *e, uint8_t *binary, const char **argv)
 		return r;
 
 
-	//	* Initialize 'argv_store[i]' to point to argument string i,
+	//	* Initialize 'arg_pointers[i]' to point to argument string i,
 	//	  for all 0 <= i < argc.
 	//	  Also, copy the argument strings from 'argv' into the
 	//	  newly-allocated stack page.
 	//
-	//	* Set 'argv_store[argc]' to 0 to null-terminate the args array.
+	//	* Set 'arg_pointers[argc]' to 0 to null-terminate the args array.
 	//
 	//	* Push two more words onto the process's stack below 'args',
 	//	  containing the argc and argv parameters to be passed
@@ -461,26 +473,33 @@ load_program(struct Env *e, uint8_t *binary, const char **argv)
 	//	* Set *init_esp to the initial stack pointer for the process,
 	//	  (Again, use an address valid in the process's environment.)
 	for (i = 0; i < argc; i++) {
-		argv_store[i] = UTEMP2USTACK(string_store);
-		strcpy(string_store, argv[i]);
-		string_store += strlen(argv[i]) + 1;
+		arg_pointers[i] = UTEMP2USTACK(args);
+		strcpy(args, argv[i]);
+		args += strlen(argv[i]) + 1;
 	}
-	argv_store[argc] = 0;
-	assert(string_store == (char*)UTEMP + PGSIZE);
 
-	argv_store[-1] = UTEMP2USTACK(argv_store);
-	argv_store[-2] = argc;
+	// NULL argument after all the string args.
+	arg_pointers[argc] = 0;
+	assert(args == (char*)UTEMP + PGSIZE);
 
+	arg_pointers[-1] = UTEMP2USTACK(arg_pointers);
+	arg_pointers[-2] = argc;
+
+	// Now that arguments hae been saved in the UTEMP,
+	// load the binary. This can't be done AFTER mapping the arguments 
+	// in the stack as load_icode also allocates a stack.
 	load_icode(e, binary);
 
-	e->env_tf.tf_esp = UTEMP2USTACK(&argv_store[-2]);
+	// set the stack pointer.
+	e->env_tf.tf_esp = UTEMP2USTACK(&arg_pointers[-2]);
 
-	// After completing the stack, map it into the process's address space
-	// and unmap it from UTEMP!
+	// Map the page containing the complete stack at UTEMP, at the 
+	// processes stack space.
 	if ((r = sys_page_map(e->env_id, UTEMP, e->env_id, (void*) (USTACKTOP - PGSIZE), PTE_P | PTE_U | PTE_W)) < 0){
 		sys_page_unmap(0, UTEMP);
 		return r;
 	}	
+	// Unmap the page at UTEMP.
 	if ((r = sys_page_unmap(0, UTEMP)) < 0)
 		return r;
 
@@ -491,21 +510,43 @@ static int
 sys_exec(char *prog, const char **argv) {
 	uint8_t *binary;
 	int i, r;
-	cprintf("%s\n", prog);
-	if(!strcmp(prog, "hello")) {
-		binary = _binary_obj_user_hello_start;
-	} else if(!strcmp(prog, "echo")) {
+	if(!strcmp(prog, "echo")) {
 		binary = _binary_obj_user_echo_start;
 	} else if(!strcmp(prog, "factorial")) {
 		binary = _binary_obj_user_factorial_start;
 	} else if(!strcmp(prog, "fibonacci")) {
 		binary = _binary_obj_user_fibonacci_start;
+	} else if(!strcmp(prog, "date")) {
+		binary = _binary_obj_user_date_start;
+	} else if(!strcmp(prog, "help")) {
+		binary = _binary_obj_user_help_start;
 	}
 
 	// TODO : Unmap all the pages upto UTOP except [UTEMP, UTEMP + PGSIZE)
 
 	load_program(curenv, binary, argv);
 
+	return 0;
+}
+
+int
+sys_wait(envid_t envid,int* status) {
+	struct Env *e;
+	if (envid2env(envid, &e, 0) < 0)
+		return -E_BAD_ENV;
+
+	// while(e->env_status != ENV_DYING){
+	// 	cprintf("waiting\n");
+	// 	sys_yield();
+	// }
+	if(e->env_status != ENV_DYING)
+	{
+		*status = 0;
+	}
+	else
+	{
+		*status =  1;
+	}
 	return 0;
 }
 
@@ -538,6 +579,11 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
         	return sys_exofork();
         case SYS_exec:
         	return sys_exec((char *)a1, (const char **)a2);
+        case SYS_wait:
+        	return sys_wait((envid_t)a1,(int*)a2);
+        case SYS_date:
+        	sys_date((struct rtcdate *)a1);
+        	return 0;
         case SYS_env_set_status:
         	return sys_env_set_status((envid_t)a1, (int)a2);
         case SYS_env_set_pgfault_upcall:

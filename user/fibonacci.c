@@ -26,6 +26,6 @@ umain(int argc, char **argv)
 		}
 		fib = num1;
 	}
-	cprintf("%dth fibonacci number is %d", idx, fib);
+	cprintf("%dth fibonacci number is %d\n", idx, fib);
 	exit();
 }

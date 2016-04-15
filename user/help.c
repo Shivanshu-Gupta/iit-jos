@@ -1,31 +1,46 @@
-// factorial
+// help
 #include <inc/lib.h>
 
 void
 umain(int argc, char **argv)
 {
-	long idx, fib = 1;
-	long num1 = 0, num2 = 1, temp;
-	if(argc < 2) {
-		cprintf("Usage : factorial <number>\n");
-		exit();
-	}
-
-	idx = strtol(argv[1], &argv[2], 10);
-	if(idx <= 0) {
-		cprintf("Invalid index\n");
-	}
-	if(idx == 0) {
-		fib = num1;
-	} else {
-		while(idx > 0) {
-			temp = num2;
-			num2 = num1 + num2;
-			num1 = temp;
-			idx--;
+	// if(argc < 1) {
+	// 	cprintf("Usage : help [command_name]\n");
+	// 	exit();
+	// }
+	if(argc>=2)
+	{
+		if(strcmp(argv[1],"help")==0){
+			cprintf("Display the list of commands\n");
 		}
-		fib = num1;
+		else if(strcmp(argv[1],"echo")==0){
+			cprintf("Echo the message\n");
+		}
+		else if(strcmp(argv[1],"factorial")==0){
+			cprintf("Calculate the factorial of a given number\n");
+		}
+		else if(strcmp(argv[1],"fibonacci")==0){
+			cprintf("Calculate nth fibonacci number\n");
+		}
+		else if(strcmp(argv[1],"date")==0){
+			cprintf("Display the current date\n");
+		}
+		else {
+			int i;
+			for(i = 1; i < argc; i++)
+				cprintf("%s%s", argv[i], i+1 < argc ? " " : "\n");
+			cprintf("The above command not found!\n");
+		}
+
 	}
-	cprintf("%dth fibonacci number is %d", idx, fib);
+	else
+	{
+		cprintf("help => Display this list of commands, \n");
+		cprintf("echo => Echo the message , \n");
+		cprintf("factorial => Calculate factorial , \n");
+		cprintf("fibonacci => Calculate nth fibonacci number , \n");
+		cprintf("date => Give the current date \n\n");	
+	}
+	
 	exit();
 }
