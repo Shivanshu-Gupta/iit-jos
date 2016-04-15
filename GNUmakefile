@@ -1,3 +1,5 @@
+
+
 #
 # This makefile system follows the structuring conventions
 # recommended by Peter Miller in his excellent paper:
@@ -277,9 +279,7 @@ handin-check:
 
 #	git archive --format=tar HEAD | gzip > lab$(LAB)-handin.tar.gz
 tarball: handin-check
-	tar -zcf lab$(LAB)-handin.tar.gz kern/env.c kern/init.c kern/kdebug.c kern/pmap.c kern/sched.c kern/syscall.c kern/trap.c kern/trap.h kern/trapentry.S lib/fork.c lib/ipc.c lib/libmain.c lib/pfentry.S lib/pgfault.c answers-lab4.txt
-	base64 lab$(LAB)-handin.tar.gz > lab$(LAB)-handin.tar.gz.b64
-	rm -f lab$(LAB)-handin.tar.gz
+	git archive --format=tar HEAD | gzip > lab5-handin.tar.gz
 
 tarball-pref: handin-check
 	@SUF=$(LAB); \
@@ -351,3 +351,7 @@ always:
 
 .PHONY: all always \
 	handin git-handin tarball tarball-pref clean realclean distclean grade handin-prep handin-check
+
+GNUmakefile
+Shivanshu Gupta (shivanshugupta1995@gmail.com)
+Displaying GNUmakefile.
