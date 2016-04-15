@@ -351,7 +351,3 @@ always:
 
 .PHONY: all always \
 	handin git-handin tarball tarball-pref clean realclean distclean grade handin-prep handin-check
-
-GNUmakefile
-Shivanshu Gupta (shivanshugupta1995@gmail.com)
-Displaying GNUmakefile.
