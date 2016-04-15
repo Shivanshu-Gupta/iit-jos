@@ -20,6 +20,7 @@ extern uint8_t _binary_obj_user_echo_start[];
 extern uint8_t _binary_obj_user_factorial_start[];
 extern uint8_t _binary_obj_user_fibonacci_start[];
 extern uint8_t _binary_obj_user_date_start[];
+// extern uint8_t _binary_obj_user_set_start[];
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -520,7 +521,8 @@ sys_exec(char *prog, const char **argv) {
 		binary = _binary_obj_user_date_start;
 	} else if(!strcmp(prog, "help")) {
 		binary = _binary_obj_user_help_start;
-	}
+	} 
+
 
 	// TODO : Unmap all the pages upto UTOP except [UTEMP, UTEMP + PGSIZE)
 

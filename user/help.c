@@ -25,6 +25,9 @@ umain(int argc, char **argv)
 		else if(strcmp(argv[1],"date")==0){
 			cprintf("Display the current date\n");
 		}
+		else if(strcmp(argv[1],"exit")==0){
+			cprintf("Exit the shell\n");
+		}
 		else {
 			int i;
 			for(i = 1; i < argc; i++)
@@ -40,6 +43,7 @@ umain(int argc, char **argv)
 		cprintf("factorial => Calculate factorial , \n");
 		cprintf("fibonacci => Calculate nth fibonacci number , \n");
 		cprintf("date => Give the current date \n\n");	
+		cprintf("exit => Exit the shell\n");
 	}
 	
 	exit();

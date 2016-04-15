@@ -40,7 +40,6 @@ readline(const char *prompt)
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
-
 struct Command {
 	const char *name;
 	const char *desc;
@@ -51,7 +50,8 @@ static struct Command commands[] = {
 	{ "echo", "Echo the message"},
 	{ "factorial", "Calculate factorial"},
 	{ "fibonacci", "Calculate nth fibonacci number with seed value 0 and 1"},
-	{ "date", "Display the current date"}
+	{ "date", "Display the current date"},
+	{ "exit", "Exit the shell."}
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -88,6 +88,13 @@ runcmd(char *buf)
 	}
 	argv[argc] = NULL;		// last argument needs to be null
 	
+	if(!strcmp(argv[0], "exit")) {
+		if(argc == 1)
+			exit();
+		else
+			cprintf("exit accepts no arguments.\n");
+	}
+
 	if(!strcmp(argv[argc-1], "&"))
 		bg = 1;
 
@@ -135,6 +142,7 @@ umain(int argc, char **argv)
 
 	char *buf;
 
+	
 	cprintf("Welcome to the Shell!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 	// cprintf("You can type hello!\n");
